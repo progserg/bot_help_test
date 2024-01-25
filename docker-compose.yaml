@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  php:
+    depends_on:
+      - kafka
+    build:
+      context: .
+      target: local
+    volumes:
+      - '.:/var/www/symfony'
+
+  zookeeper:
+    build:
+      context: .docker/zookeeper
+    ports:
+      - '2181:2181'
+
+  kafka:
+    build:
+      context: .docker/kafka
+    command:
+      - --override
+      - broker.id=1
+      - --override
+      - zookeeper.connect=zookeeper:2181
+    depends_on:
+      - zookeeper
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    ports:
+      - 8080:8080
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      DYNAMIC_CONFIG_ENABLED: 'true'
+  web:
+    image: nginx:alpine
+    volumes:
+      - "./.docker/nginx/default.conf:/etc/nginx/conf.d/default.conf"
+      - "./public:/var/www/symfony/public"
+    ports:
+      - "8000:80"
+    environment:
+      - NGINX_HOST=${NGINX_HOST}
+    restart: always
+    depends_on:
+      - php
+      - mysqldb
+  mysqldb:
+    image: mysql:${MYSQL_VERSION}
+    container_name: ${MYSQL_HOST}
+    restart: always
+    env_file:
+      - ".env"
+    environment:
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+    ports:
+      - "8989:3306"
+    volumes:
+      - "./.docker/data/db/mysql:/var/lib/mysql"
+
+
